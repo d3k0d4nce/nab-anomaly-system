@@ -1,0 +1,6 @@
+series,crit,windows,TP,FP,FN,recall,precision,fp/24h,latency_obs,cost,baseline_recall,baseline_precision,baseline_cost
+art_daily_small_noise,1,0,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,18.0
+art_daily_jumpsup,3,1,1,0,0,1.0,1.0,0.0,0.0,2.0,1.0,0.2,14.0
+ec2_request_latency_system_failure,4,2,2,0,0,1.0,1.0,0.0,0.0,4.0,1.0,1.0,4.0
+rds_cpu_utilization_cc0c53,3,2,2,0,0,1.0,1.0,0.0,0.0,2.0,1.0,0.667,7.0
+ec2_network_in_5abac7,3,1,0,0,1,0.0,0.0,0.0,0.0,10.0,1.0,0.1,29.0

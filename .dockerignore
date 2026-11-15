@@ -1,0 +1,14 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+.DS_Store
+scratch
+data/raw/NAB
+data/processed
+artifacts
+reports
+logs
+.env

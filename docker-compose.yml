@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-nab_anomaly}
+      POSTGRES_USER: ${PGUSER:-nab}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-nab}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-nab} -d ${PGDATABASE:-nab_anomaly}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${PGDATABASE:-nab_anomaly}
+      PGUSER: ${PGUSER:-nab}
+      PGPASSWORD: ${PGPASSWORD:-nab}
+      NAB_SECRET_KEY: "${NAB_SECRET_KEY:-change-me-in-production-please}"
+      NAB_COOKIE_SECURE: "${NAB_COOKIE_SECURE:-0}"
+      NAB_OPERATOR_LOGIN: "${NAB_OPERATOR_LOGIN:-operator}"
+      NAB_OPERATOR_PASSWORD: "${NAB_OPERATOR_PASSWORD:-demo-operator}"
+      NAB_ADMIN_LOGIN: "${NAB_ADMIN_LOGIN:-admin}"
+      NAB_ADMIN_PASSWORD: "${NAB_ADMIN_PASSWORD:-demo-admin}"
+      NAB_RUN_PIPELINE: ${NAB_RUN_PIPELINE:-auto}
+    volumes:
+      - nab_data:/app/data
+      - nab_artifacts:/app/artifacts
+      - nab_reports:/app/reports
+      - nab_logs:/app/logs
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${NAB_HTTP_PORT:-8081}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  pgdata:
+  nab_data:
+  nab_artifacts:
+  nab_reports:
+  nab_logs:

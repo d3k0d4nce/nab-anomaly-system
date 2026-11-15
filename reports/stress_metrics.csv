@@ -1,0 +1,7 @@
+series,crit,windows,TP,FP,FN,recall,precision,fp/24h,latency_obs,cost,baseline_recall,baseline_precision,baseline_cost
+machine_temperature_system_failure,5,2,2,5,0,1.0,0.286,0.159,0.0,19.0,0.5,0.333,18.0
+nyc_taxi,3,4,4,11,0,1.0,0.267,0.128,0.0,37.0,1.0,1.0,2.0
+speed_t4013,4,2,1,1,1,0.5,0.5,0.154,0.0,15.0,0.5,1.0,12.0
+Twitter_volume_AMZN,2,2,0,0,2,0.0,0.0,0.0,0.0,20.0,1.0,0.182,29.0
+exchange-4_cpm_results,2,2,2,0,0,1.0,1.0,0.0,0.0,2.0,1.0,1.0,2.0
+ec2_cpu_utilization_24ae8d,3,2,2,1,0,1.0,0.667,0.179,0.0,5.0,1.0,1.0,2.0

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nab-anomaly-system"
+version = "1.0.0"
+description = "NAB anomaly detection system: audit, baseline, combined detector, actions and reporting"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "scikit-learn>=1.6",
+    "psycopg2-binary>=2.9",
+    "matplotlib>=3.9",
+    "PyYAML>=6.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+nab-anomaly = "nab_system.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

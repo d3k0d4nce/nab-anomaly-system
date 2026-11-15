@@ -1,0 +1,131 @@
+project:
+  name: "NAB Anomaly Detection System"
+  version: "1.0.0"
+  seed: 42
+
+paths:
+  nab_raw: data/raw/NAB
+  processed: data/processed
+  artifacts: artifacts
+  reports: reports
+  figures: reports/figures
+  logs: logs
+
+database:
+  host: localhost
+  port: 5432
+  dbname: nab_anomaly
+  # Empty = current OS user (Homebrew/macOS) or PGUSER if set.
+  user: ""
+  password: ""
+  schema: schema.sql
+
+split:
+  train: 0.30
+  validation: 0.30
+  test: 0.40
+
+detection:
+  # Operational evidence thresholds. They are converted to calibrated
+  # probability thresholds per series (see reports/final_report.md).
+  warning_evidence: 5.0
+  incident_evidence: 7.0
+  exit_ratio: 0.60
+  k_consecutive: 2
+  end_after: 48
+  min_history: 576
+  seasonal_days: 7
+  tail_quantile: 0.95
+  # Criticality-aware policy layer (risk map, table 8.5/8.6).
+  risk_thresholds:
+    1: {warning: 7.0, incident: 9.0}
+    2: {warning: 6.0, incident: 8.0}
+    3: {warning: 5.0, incident: 7.0}
+    4: {warning: 4.5, incident: 6.5}
+    5: {warning: 4.0, incident: 6.0}
+
+actions:
+  cost_false_warning: 1
+  cost_false_incident: 3
+  cost_miss: 10
+  cost_true_warning: 4
+  cost_true_incident: 2
+  response_warning_min: 5
+  response_incident_min: 2
+  theoretical_warning_prob: 0.14
+  theoretical_incident_prob: 0.50
+
+evaluation:
+  fp_budget_per_24h: 2
+  recall_target: 0.80
+  precision_target: 0.70
+  latency_target_obs: 3
+  latency_p95_ms: 1000
+  fp_cooldown_seconds: 3600
+
+# Pilot benchmark: chosen during stage 2. The set covers a control series,
+# a synthetic injected anomaly, a user-facing latency failure and two
+# cloud infrastructure metrics.
+benchmark:
+  - name: art_daily_small_noise
+    path: artificialNoAnomaly/art_daily_small_noise.csv
+    category: artificialNoAnomaly
+    criticality: 1
+    description: "Синтетический контрольный ряд без аномалий"
+  - name: art_daily_jumpsup
+    path: artificialWithAnomaly/art_daily_jumpsup.csv
+    category: artificialWithAnomaly
+    criticality: 3
+    description: "Синтетический ряд с внедрённым подъёмом уровня"
+  - name: ec2_request_latency_system_failure
+    path: realKnownCause/ec2_request_latency_system_failure.csv
+    category: realKnownCause
+    criticality: 4
+    description: "Задержка запросов пользовательского сервиса"
+  - name: rds_cpu_utilization_cc0c53
+    path: realAWSCloudwatch/rds_cpu_utilization_cc0c53.csv
+    category: realAWSCloudwatch
+    criticality: 3
+    description: "Загрузка CPU RDS"
+  - name: ec2_network_in_5abac7
+    path: realAWSCloudwatch/ec2_network_in_5abac7.csv
+    category: realAWSCloudwatch
+    criticality: 3
+    description: "Сетевой трафик EC2"
+
+# Difficult / drifting series used for a separate stress report. They are
+# not included in the pilot success criteria because the NAB labels contain
+# long contextual windows and strong non-stationarity.
+stress_series:
+  - name: machine_temperature_system_failure
+    path: realKnownCause/machine_temperature_system_failure.csv
+    category: realKnownCause
+    criticality: 5
+  - name: nyc_taxi
+    path: realKnownCause/nyc_taxi.csv
+    category: realKnownCause
+    criticality: 3
+  - name: speed_t4013
+    path: realTraffic/speed_t4013.csv
+    category: realTraffic
+    criticality: 4
+  - name: Twitter_volume_AMZN
+    path: realTweets/Twitter_volume_AMZN.csv
+    category: realTweets
+    criticality: 2
+  - name: exchange-4_cpm_results
+    path: realAdExchange/exchange-4_cpm_results.csv
+    category: realAdExchange
+    criticality: 2
+  - name: ec2_cpu_utilization_24ae8d
+    path: realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv
+    category: realAWSCloudwatch
+    criticality: 3
+
+demo:
+  series: ec2_request_latency_system_failure
+  # Replay test segment around the first labelled failure in the test split.
+  # The radius is expressed in observations (60 x 5 min = 5 hours).
+  window_radius: 60
+  engineer_name: "Дежурный инженер"
+  engineer_contact: "duty@example.local"
