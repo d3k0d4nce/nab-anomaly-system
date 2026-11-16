@@ -1,63 +1,70 @@
 # NAB Anomaly Detection System
 
-Course project for stages 2–4 of the anomaly-monitoring assignment. The system
-uses the [Numenta Anomaly Benchmark](https://github.com/numenta/NAB) telemetry,
-stores all metadata and decisions in PostgreSQL, evaluates a stage-2 baseline
-against a combined rules+model detector, applies a criticality-aware action
-policy, and demonstrates a normal → failure → recovery replay.
+Курсовой проект по этапам 2–4 задания на мониторинг аномалий. Система
+использует телеметрию [Numenta Anomaly Benchmark](https://github.com/numenta/NAB),
+хранит все метаданные и решения в PostgreSQL, сравнивает baseline этапа 2 с
+комбинированным детектором «правила + модель», применяет политику действий с
+учётом критичности и демонстрирует replay «норма → сбой → восстановление».
 
-## What is implemented
+## Что реализовано
 
-- **Stage 2 — data and baseline**
-  - dataset download/validation, regular grid, missing-value audit, gap report,
-    daily seasonality estimate, raw and combined label windows;
-  - chronological 30% / 30% / 40% train / validation / test split;
-  - rolling robust-z baseline with the same action/episode policy.
-- **Stage 3 — combined detector and actions**
-  - five causal robust-z features: short level, long level, first difference,
-    seasonal residual and level deviation;
-  - per-feature peaks-over-threshold GPD tail models and `evidence = max(-log10 p)`;
-  - probability calibration on the validation split (isotonic, with a smooth
-    fallback for control series without validation anomalies);
-  - `SKIP` / `WARNING` / `INCIDENT` action engine with `k=2` confirmation,
-    48-point episode tail, 0.6 hysteresis exit, at most one warning and one
-    incident per episode, immediate `INCIDENT` for critical evidence, and
-    criticality-aware thresholds;
-  - PostgreSQL persistence of series, observations, parameters, episodes,
-    decisions, alerts, engineers, check results, logs, quality stats and labels.
-- **Stage 4 — evaluation, reports and service**
-  - event-level TP/FP/FN, recall, precision, F1, false positives per 24 h,
-    latency from the raw onset, and cost in `у.е.`;
-  - pilot benchmark + separate stress report;
-  - figures, `reports/final_report.md`, `reports/metrics.json`,
+- **Этап 2 — данные и baseline**
+  - загрузка и валидация датасета, регулярная сетка, аудит пропусков, отчёт о
+    разрывах, оценка суточной сезонности, сырые и комбинированные окна разметки;
+  - хронологическое разбиение train / validation / test = 30% / 30% / 40%;
+  - baseline на rolling robust-z с той же политикой действий и эпизодов.
+- **Этап 3 — комбинированный детектор и действия**
+  - пять причинных robust-z признаков: короткий уровень, длинный уровень,
+    первая разность, сезонный остаток и отклонение уровня;
+  - peaks-over-threshold GPD-модели хвоста по каждому признаку и
+    `evidence = max(-log10 p)`;
+  - калибровка вероятности на validation (isotonic с гладким fallback для
+    контрольных рядов без аномалий в validation);
+  - движок действий `SKIP` / `WARNING` / `INCIDENT` с подтверждением `k=2`,
+    хвостом эпизода 48 точек, выходом с гистерезисом 0.6, не более одним
+    warning и одним incident на эпизод, немедленным `INCIDENT` при критическом
+    evidence и порогами с учётом criticality;
+  - сохранение в PostgreSQL рядов, наблюдений, параметров, эпизодов, решений,
+    алертов, инженеров, результатов проверок, логов, статистики качества и
+    разметки.
+- **Этап 4 — оценка, отчёты и сервис**
+  - event-level TP/FP/FN, recall, precision, F1, ложные срабатывания за 24 ч,
+    задержка от сырого onset и стоимость в `у.е.`;
+  - пилотный benchmark + отдельный stress-отчёт;
+  - графики, `reports/final_report.md`, `reports/metrics.json`,
     `reports/data_audit.*`, `reports/demo_log.txt`;
-  - replay demo and FastAPI streaming endpoint with data-quality/history gates;
-  - web dashboard with charts, alerts, workflow buttons, operational KPIs,
-    quality stats, manual point entry and live auto-refresh;
-  - interactive alert workflow: acknowledge, confirm/false alarm, diagnostics,
-    close, journal and live operational statistics;
-  - session authentication for the duty engineer (one role);
-  - Docker Compose deployment: PostgreSQL + FastAPI + nginx.
+  - replay-демонстрация и потоковый endpoint FastAPI с проверками качества
+    данных и достаточности истории;
+  - веб-dashboard с графиками, алертами, кнопками workflow, операционными KPI,
+    статистикой качества, ручной точкой и живым автообновлением;
+  - интерактивный workflow алертов: взять в работу, подтвердить реальный сбой
+    или ложную тревогу, диагностика, закрытие, журнал и оперативная статистика;
+  - аутентификация дежурного инженера по сессии (одна роль);
+  - развёртывание через Docker Compose: PostgreSQL + FastAPI + nginx.
 
-## Quick start
+## Быстрый старт
 
-The easiest option is Docker Compose (requires Docker Desktop/Engine with the
-Compose plugin; Python and PostgreSQL are not needed on the host):
+Самый простой вариант — Docker Compose (нужны Docker Desktop/Engine с плагином
+Compose; Python и PostgreSQL на хосте не требуются):
 
 ```bash
 git clone <your-repo-url> nab-anomaly-system
 cd nab-anomaly-system
-cp .env.example .env          # then change NAB_SECRET_KEY and the demo passwords
-docker compose up --build -d  # first start downloads NAB and trains detectors
+cp .env.example .env          # затем измените NAB_SECRET_KEY и пароли демо-аккаунтов
+docker compose up --build -d  # первый запуск скачает NAB и обучит детекторы
 # dashboard: http://127.0.0.1:8081
 ```
 
-The first build/start can take several minutes: the container clones the NAB
-dataset (~350 MB), runs the audit, trains the detectors and fills PostgreSQL.
-Follow progress with `docker compose logs -f app`.
+Первая сборка/запуск может занять несколько минут: контейнер клонирует датасет
+NAB (~350 МБ), выполняет аудит, обучает детекторы и заполняет PostgreSQL.
+Прогресс:
 
-For a local Python run, see the step-by-step guide in
-[`ИНСТРУКЦИЯ.md`](ИНСТРУКЦИЯ.md). In short:
+```bash
+docker compose logs -f app
+```
+
+Для локального запуска через Python смотрите пошаговую инструкцию в
+[`ИНСТРУКЦИЯ.md`](ИНСТРУКЦИЯ.md). Кратко:
 
 ```bash
 python3 -m venv .venv
@@ -65,18 +72,18 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 pip install -e .
 
-# PostgreSQL must be running; the database is created automatically.
-# Set PGUSER/PGPASSWORD if the defaults do not match your installation.
-python -m nab_system.cli pipeline   # clones NAB on first run, trains, evaluates
+# PostgreSQL должен быть запущен; база создаётся автоматически.
+# Задайте PGUSER/PGPASSWORD, если значения по умолчанию не подходят.
+python -m nab_system.cli pipeline   # при первом запуске клонирует NAB, обучает, оценивает
 python -m nab_system.cli demo
 python -m nab_system.cli report
 pytest -q
 
-# Dashboard + API (opens at http://127.0.0.1:8000)
+# Dashboard + API (открывается на http://127.0.0.1:8000)
 python -m nab_system.cli serve --host 127.0.0.1 --port 8000
 ```
 
-The same commands are available as scripts:
+Те же команды доступны через скрипты:
 
 ```bash
 python scripts/init_db.py --reset
@@ -85,90 +92,103 @@ python scripts/run_pipeline.py
 python scripts/run_service_demo.py
 ```
 
-The package is installed in editable mode (`pip install -e .`) and exposes the
-`nab-anomaly` console script as well.
+Пакет устанавливается в editable-режиме (`pip install -e .`) и предоставляет
+консольную команду `nab-anomaly`.
 
-## Environment
+## Материалы для защиты (этапы 2–4)
 
-- Python 3.9+ (3.11/3.12 recommended) or Docker
-- PostgreSQL 16 (local service or the Compose `db` container)
-- Default connection: `localhost:5432`, database `nab_anomaly`,
-  user = `PGUSER` or the current OS user, empty password. The database is
-  created automatically; the PostgreSQL role must already exist.
-- Override with `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`.
-- Web/auth env: `NAB_SECRET_KEY` (a stable random secret),
-  `NAB_COOKIE_SECURE`, `NAB_OPERATOR_LOGIN/PASSWORD`,
-  `NAB_ADMIN_LOGIN/PASSWORD`, `NAB_RUN_PIPELINE` (Compose only).
+В репозитории есть пакет для защиты: карта требований, маршруты демонстрации,
+ключевые цифры и вероятные вопросы комиссии:
 
-Docker Compose reads `.env`; a local Python run reads only real environment
-variables. Export them in the shell before `serve` if needed.
+- [План и чеклист](docs/defense/00_ПЛАН_И_ЧЕКЛИСТ.md)
+- [Этап 2 — данные, аудит и baseline](docs/defense/ЭТАП_2_ДАННЫЕ_И_БАЗА.md)
+- [Этап 2 — пошаговая защита «как для новенького»](docs/defense/ЭТАП_2_ПОШАГОВАЯ_ЗАЩИТА.md)
+- [Этап 3 — детектор и политика действий](docs/defense/ЭТАП_3_ДЕТЕКТОР_И_ДЕЙСТВИЯ.md)
+- [Этап 4 — сервис, мониторинг и эксплуатация](docs/defense/ЭТАП_4_СЕРВИС_И_ЭКСПЛУАТАЦИЯ.md)
+- [Шпаргалка команд для демонстрации](docs/defense/ШПАРГАЛКА_ДЕМОНСТРАЦИИ.md)
 
-Python dependencies: see `requirements.txt` and `pyproject.toml`.
+## Окружение
 
-## Project layout
+- Python 3.9+ (рекомендуется 3.11/3.12) или Docker;
+- PostgreSQL 16 (локальный сервис или контейнер `db` в Compose);
+- подключение по умолчанию: `localhost:5432`, база `nab_anomaly`,
+  пользователь = `PGUSER` или текущий пользователь ОС, пустой пароль. База
+  создаётся автоматически; роль PostgreSQL должна уже существовать;
+- переопределение: `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`;
+- переменные веб-сервиса и авторизации: `NAB_SECRET_KEY` (стабильный случайный
+  секрет), `NAB_COOKIE_SECURE`, `NAB_OPERATOR_LOGIN/PASSWORD`,
+  `NAB_ADMIN_LOGIN/PASSWORD`, `NAB_RUN_PIPELINE` (только для Compose).
+
+Docker Compose читает `.env`; локальный запуск Python читает только реальные
+переменные окружения. При необходимости экспортируйте их в shell перед
+`serve`.
+
+Зависимости Python: см. `requirements.txt` и `pyproject.toml`.
+
+## Структура проекта
 
 ```
-config.yaml                  thresholds, split, benchmark and stress series, demo
+config.yaml                  пороги, split, benchmark и stress-ряды, демо
 src/nab_system/
-  config.py                  config loading and risk map
-  db.py, schema.sql          connection, schema, reset/init
-  repository.py              all SQL operations
-  data_loader.py             NAB download, CSV loading, regular grid, labels
-  audit.py                   data-quality and seasonality audit
-  features.py                batch and online causal features
-  detector.py                GPD tail model, evidence, calibration
-  actions.py                 episode state machine and dedup
-  baseline.py                stage-2 baselines
-  evaluator.py               event-level and point-level metrics
-  pipeline.py                train/evaluate/persist orchestration
-  service.py                 replay demo and FastAPI app, auth routes
-  auth.py                    PBKDF2 password hashing, users and role checks
-  dashboard.py               server-rendered dashboard and chart PNGs
-  reports.py                 figures and final report
-  cli.py                     command line interface
-scripts/                     thin entry points
-docker/                      nginx config and container entrypoint
+  config.py                  загрузка конфига и карта рисков
+  db.py, schema.sql          подключение, схема, reset/init
+  repository.py              все SQL-операции
+  data_loader.py             загрузка NAB, CSV, регулярная сетка, разметка
+  audit.py                   аудит качества данных и сезонности
+  features.py                пакетные и онлайн причинные признаки
+  detector.py                GPD-модель хвоста, evidence, калибровка
+  actions.py                 конечный автомат эпизодов и дедупликация
+  baseline.py                baseline этапа 2
+  evaluator.py               event-level и point-level метрики
+  pipeline.py                оркестрация train/evaluate/persist
+  service.py                 replay-демо и FastAPI-приложение, auth-маршруты
+  auth.py                    PBKDF2-хеширование паролей, пользователи и роли
+  dashboard.py               серверный dashboard и PNG-графики
+  reports.py                 графики и итоговый отчёт
+  cli.py                     интерфейс командной строки
+scripts/                     тонкие точки входа
+docker/                      конфиг nginx и entrypoint контейнера
 Dockerfile, docker-compose.yml
-tests/                       unit tests
-reports/                     generated reports and figures
-artifacts/detectors/         serialized detectors
-data/processed/              scored series for inspection
-logs/                        pipeline log
+tests/                       unit-тесты
+reports/                     сгенерированные отчёты и графики
+artifacts/detectors/         сериализованные детекторы
+data/processed/              размеченные ряды для проверки
+logs/                        лог pipeline
 ```
 
-## Database model
+## Модель базы данных
 
-The schema follows the assignment passport. 11 tables are used:
+Схема соответствует паспорту задания. Используются 11 таблиц:
 
-| table | purpose |
+| таблица | назначение |
 |---|---|
-| `time_series` | series metadata, category, criticality, step |
-| `observations` | regular-grid values, imputation flag, split |
-| `detection_params` | per-series calibrated thresholds and episode settings |
-| `deviation_episodes` | episode start/end, peak evidence, warning/incident flags |
-| `decisions` | per-observation evidence, calibrated probability, action |
-| `alerts` | WARNING/INCIDENT alerts, assigned engineer, response limit |
-| `duty_engineers` | dashboard users: login, PBKDF2 hash, role, on-duty |
-| `check_results` | engineer checks of alerts |
-| `log_entries` | series and alert audit log |
-| `quality_stats` | TP/FP/FN, recall, precision, F1, FP/24h, cost |
-| `label_windows` | NAB combined windows and raw onsets |
+| `time_series` | метаданные ряда, категория, criticality, шаг |
+| `observations` | значения на регулярной сетке, флаг интерполяции, split |
+| `detection_params` | калиброванные пороги и настройки эпизодов по ряду |
+| `deviation_episodes` | начало/конец эпизода, пиковый evidence, флаги warning/incident |
+| `decisions` | evidence, калиброванная вероятность и действие по наблюдению |
+| `alerts` | алерты WARNING/INCIDENT, назначенный инженер, лимит реакции |
+| `duty_engineers` | пользователи dashboard: логин, PBKDF2-хеш, роль, на дежурстве |
+| `check_results` | результаты проверок алертов инженером |
+| `log_entries` | журнал аудита рядов и алертов |
+| `quality_stats` | TP/FP/FN, recall, precision, F1, FP/24h, стоимость |
+| `label_windows` | комбинированные окна NAB и сырые onset-метки |
 
-Two references in the original passport are corrected: `log_entries.alert_id`
-references `alerts` (not `duty_engineers`), and `check_results.engineer_id`
-references `duty_engineers` (not `engineers`). Two audit fields are added:
-`time_series.criticality` / `category`, and `observations.split` / `is_imputed`.
-Auth columns (`login`, `password_hash`, `role`, `is_active`) are added to
-`duty_engineers`, so the original 11-table passport is preserved.
+В исходном паспорте исправлены две ссылки: `log_entries.alert_id` ссылается на
+`alerts` (а не на `duty_engineers`), а `check_results.engineer_id` ссылается на
+`duty_engineers` (а не на `engineers`). Добавлены два поля аудита:
+`time_series.criticality` / `category` и `observations.split` / `is_imputed`.
+В `duty_engineers` добавлены auth-колонки (`login`, `password_hash`, `role`,
+`is_active`), поэтому исходный паспорт с 11 таблицами сохранён.
 
-## Detector and action policy
+## Детектор и политика действий
 
-For every observation the detector computes five scale-free features. Tail
-models are fitted only on normal training points, excluding labelled windows
-and a warm-up prefix. The maximum tail surprise over the five features is the
-evidence. Validation data calibrates evidence to `P(anomaly)`.
+Для каждого наблюдения детектор вычисляет пять масштабно-независимых признаков.
+Модели хвоста обучаются только на нормальных точках train, исключая размеченные
+окна и warm-up-префикс. Evidence — максимальная хвостовая неожиданность по
+пяти признакам. Validation калибрует evidence в `P(аномалии)`.
 
-Operational evidence thresholds by criticality:
+Операционные пороги evidence по criticality:
 
 | criticality | WARNING | INCIDENT |
 |---|---:|---:|
@@ -178,197 +198,198 @@ Operational evidence thresholds by criticality:
 | 4 | 4.5 | 6.5 |
 | 5 | 4.0 | 6.0 |
 
-The passport's theoretical cost thresholds (`p = 0.14` and `p = 0.50`) are
-converted into these evidence thresholds and then into per-series calibrated
-probabilities; both are stored in `detection_params`.
+Теоретические стоимостные пороги паспорта (`p = 0.14` и `p = 0.50`)
+переводятся в эти пороги evidence, а затем в калиброванные вероятности по
+каждому ряду; и то, и другое хранится в `detection_params`.
 
-An episode starts after `k=2` consecutive points above the warning threshold.
-An episode normally starts with `WARNING` after `k=2` points above the warning
-threshold. If a point immediately exceeds the incident threshold, the system
-creates `INCIDENT` at once without waiting for `WARNING` or operator
-confirmation; otherwise the active episode is escalated to one `INCIDENT`.
-The episode ends after 48 points below `0.6 × warning_threshold`. Repeat alerts
-inside the same episode are suppressed.
+Эпизод начинается после `k=2` подряд точек выше warning-порога. Обычно эпизод
+начинается с `WARNING` после `k=2` точек выше warning-порога. Если точка сразу
+превышает incident-порог, система создаёт `INCIDENT` немедленно, не ожидая
+`WARNING` или подтверждения оператора; иначе активный эпизод эскалируется до
+одного `INCIDENT`. Эпизод завершается после 48 точек ниже
+`0.6 × warning_threshold`. Повторные алерты внутри одного эпизода подавляются.
 
-## Results
+## Результаты
 
-Latest pilot run (`reports/metrics.json`):
+Последний пилотный запуск (`reports/metrics.json`):
 
-| metric | combined | rolling-z baseline |
+| метрика | combined | rolling-z baseline |
 |---|---:|---:|
 | recall | 0.833 | 1.000 |
 | precision | 1.000 | 0.231 |
-| worst FP / 24h | 0.000 | 1.371 |
-| cost, у.е. | 18.0 | 72.0 |
-| p95 latency | 1 ms | 1 ms |
+| худший FP / 24h | 0.000 | 1.371 |
+| стоимость, у.е. | 18.0 | 72.0 |
+| p95 задержки | 1 ms | 1 ms |
 
-All four success criteria pass: recall ≥ 0.80, precision ≥ 0.70,
-FP ≤ 2 per series per 24 h, and p95 latency < 1 s. One pilot window
-(`ec2_network_in_5abac7`) is not detected because its evidence remains below
-the warning threshold.
+Все четыре критерия успеха выполняются: recall ≥ 0.80, precision ≥ 0.70,
+FP ≤ 2 на ряд за 24 ч и p95 задержки < 1 с. Одно пилотное окно
+(`ec2_network_in_5abac7`) не обнаружено, потому что его evidence остаётся ниже
+warning-порога.
 
-The stress set (`machine_temperature`, `nyc_taxi`, `speed_t4013`,
+Stress-набор (`machine_temperature`, `nyc_taxi`, `speed_t4013`,
 `Twitter_volume_AMZN`, `exchange-4_cpm_results`, `ec2_cpu_utilization_24ae8d`)
-is reported separately; its aggregate recall/precision is 0.786 / 0.379 and
-cost is 98.0 у.е. These series are non-stationary or have very wide contextual
-labels and are not part of the pilot acceptance criteria.
+отчитывается отдельно; его агрегированные recall/precision — 0.786 / 0.379,
+стоимость — 98.0 у.е. Эти ряды нестационарны или имеют очень широкие
+контекстные метки, поэтому они не входят в критерии приёмки пилота.
 
-## Demo
+## Демонстрация
 
 ```bash
 python -m nab_system.cli demo
 ```
 
-The replay uses `ec2_request_latency_system_failure`, around the first test
-failure. It shows normal operation, immediate `INCIDENT` at 22:36 when evidence
-crosses the critical threshold, and recovery after the episode closes at 02:46.
-Full output is written to `reports/demo_log.txt`.
+Replay использует `ec2_request_latency_system_failure` вокруг первого сбоя в
+test. Показывается нормальная работа, немедленный `INCIDENT` в 22:36, когда
+evidence пересекает критический порог, и восстановление после закрытия эпизода
+в 02:46. Полный вывод записывается в `reports/demo_log.txt`.
 
-## HTTP service
+## HTTP-сервис
 
 ```bash
 python -m nab_system.cli serve --port 8000
-# or: python scripts/serve.py --port 8000
+# или: python scripts/serve.py --port 8000
 ```
 
-Open `http://127.0.0.1:8000/` for the dashboard. Two demo accounts are seeded
-(override with `NAB_OPERATOR_LOGIN/PASSWORD` and `NAB_ADMIN_LOGIN/PASSWORD`):
+Откройте `http://127.0.0.1:8000/` для dashboard. Создаются два демо-аккаунта
+(переопределяются через `NAB_OPERATOR_LOGIN/PASSWORD` и
+`NAB_ADMIN_LOGIN/PASSWORD`):
 
-| login | password | role | access |
+| логин | пароль | роль | доступ |
 |---|---|---|---|
-| `operator` | `demo-operator` | дежурный инженер | dashboard, API, alert workflow |
-| `admin` | `demo-admin` | администратор | dashboard, API, `/observe`, alert workflow |
+| `operator` | `demo-operator` | дежурный инженер | dashboard, API, workflow алертов |
+| `admin` | `demo-admin` | администратор | dashboard, API, `/observe`, workflow алертов |
 
 Endpoints:
 
-- `GET /` — HTML dashboard (login required, auto-refreshes every 10 s);
+- `GET /` — HTML dashboard (нужен логин, автообновление каждые 10 с);
   query: `page`, `qpage`, `status`, `alert_type`, `series`;
-- `GET /dashboard/partials` — KPI/alert/stat/pagination HTML fragments for
-  live updates; same query parameters as `/`;
-- `GET /chart/{series}.png` — chart with test labels, actions and evidence;
-- `GET /login`, `POST /login`, `GET /logout` — session auth;
-- `GET /health` — public service status;
-- `GET /me` — current user;
-- `GET /series` — known series;
+- `GET /dashboard/partials` — HTML-фрагменты KPI/алертов/статистики/пагинации
+  для живых обновлений; те же query-параметры, что у `/`;
+- `GET /chart/{series}.png` — график с test-разметкой, действиями и evidence;
+- `GET /login`, `POST /login`, `GET /logout` — аутентификация по сессии;
+- `GET /health` — публичный статус сервиса;
+- `GET /me` — текущий пользователь;
+- `GET /series` — известные ряды;
 - `POST /observe` — `{"series": "...", "timestamp": "...", "value": 12.3}`,
-  administrator only;
-- `GET /alerts?limit=50` — recent alerts with check results;
-- `GET /alerts/{id}` — alert details and its journal entries;
-- `POST /alerts/{id}/ack` — take an alert into work (duty engineer);
-- `POST /alerts/{id}/check` — duty-engineer result
+  только администратор;
+- `GET /alerts?limit=50` — последние алерты с результатами проверок;
+- `GET /alerts/{id}` — детали алерта и записи его журнала;
+- `POST /alerts/{id}/ack` — взять алерт в работу (дежурный инженер);
+- `POST /alerts/{id}/check` — результат проверки дежурного инженера
   `{"is_real_fault": true|false, "comment": "...", "diagnostics": "..."}`;
-  a real fault moves the alert to `ACKNOWLEDGED`, a false alarm to `CLOSED`;
-- `POST /alerts/{id}/close` — close an acknowledged alert after diagnostics;
-- `GET /stats?limit=100` — quality statistics;
-- `GET /stats/operational` — live alert/check counters.
+  реальный сбой переводит алерт в `ACKNOWLEDGED`, ложная тревога — в `CLOSED`;
+- `POST /alerts/{id}/close` — закрыть подтверждённый алерт после диагностики;
+- `GET /stats?limit=100` — статистика качества;
+- `GET /stats/operational` — живые счётчики алертов и проверок.
 
-Sessions are signed with `itsdangerous`, stored in an HttpOnly SameSite=Lax
-cookie. Passwords use PBKDF2-HMAC-SHA256 (260k iterations, per-user salt). The
-assignment has one role: `operator` (duty engineer); other accounts are disabled
-on startup.
+Сессии подписываются через `itsdangerous` и хранятся в HttpOnly SameSite=Lax
+cookie. Пароли используют PBKDF2-HMAC-SHA256 (260k итераций, соль на
+пользователя). В задании одна роль: `operator` (дежурный инженер); остальные
+аккаунты отключаются при старте.
 
-### Manual point input and alert response
+### Ручная точка и обработка алертов
 
-The duty engineer can submit one point from the dashboard or via `POST /observe`.
-The service loads the detector, warms the online state from recent observations,
-validates timestamp/value, checks that enough history exists, computes
-features/evidence/probability, applies the action policy, and persists the
-observation, decision, episode and alert. A duplicate timestamp is rejected
-with `409`; a non-finite value is rejected with `400`; insufficient history
-returns `SKIP` with `data_quality.enough_history=false`. Timestamps should be
-sequential; a single point may return `SKIP` because an episode needs `k=2`
-confirmed points.
+Дежурный инженер может отправить одну точку с dashboard или через
+`POST /observe`. Сервис загружает детектор, прогревает онлайн-состояние по
+последним наблюдениям, проверяет timestamp/значение, проверяет достаточность
+истории, вычисляет признаки/evidence/вероятность, применяет политику действий
+и сохраняет наблюдение, решение, эпизод и алерт. Дубликат timestamp отклоняется
+с `409`; не конечное значение — с `400`; при недостатке истории возвращается
+`SKIP` с `data_quality.enough_history=false`. Timestamps должны быть
+последовательными; одна точка может вернуть `SKIP`, потому что эпизоду нужно
+`k=2` подтверждённые точки.
 
-Processing follows the supplied scheme:
+Обработка следует предложенной схеме:
 
-1. new observation (series, time, value) and a window of previous values;
-2. completeness/correctness check and `min_history` gate;
-3. anomaly score; below threshold → `SKIP`;
-4. immediate exceedance of the incident threshold → `INCIDENT` at once;
-5. otherwise sustained deviation (`k=2`) above warning threshold → `WARNING`,
-   then one `INCIDENT` escalation if the episode reaches the incident threshold;
-6. warning/incident is logged, the episode is marked `warning_sent`/`incident_sent`,
-   and an incident is stored with status `OPEN`;
-7. duty engineer takes the alert into work and submits a check result;
-8. real fault → `confirmed`, diagnostics/mitigation, then close; false alarm →
-   `false_alarm` and close;
-9. operational statistics and journal are updated, then the window is passed to
-   the next observation.
+1. новое наблюдение (ряд, время, значение) и окно предыдущих значений;
+2. проверка полноты/корректности и гейт `min_history`;
+3. anomaly score; ниже порога → `SKIP`;
+4. немедленное превышение incident-порога → сразу `INCIDENT`;
+5. иначе устойчивое отклонение (`k=2`) выше warning-порога → `WARNING`,
+   затем одна эскалация в `INCIDENT`, если эпизод достигает incident-порога;
+6. warning/incident логируется, эпизод помечается
+   `warning_sent`/`incident_sent`, инцидент сохраняется со статусом `OPEN`;
+7. дежурный инженер берёт алерт в работу и отправляет результат проверки;
+8. реальный сбой → `confirmed`, диагностика/устранение, затем закрытие;
+   ложная тревога → `false_alarm` и закрытие;
+9. оперативная статистика и журнал обновляются, окно передаётся следующему
+   наблюдению.
 
-The scheme has one contradictory branch: both “выраженное отклонение” and
-“устойчивое отклонение” point to `INCIDENT`, while a separate `WARNING` node
-exists. The implementation resolves it as follows: critical evidence creates
-`INCIDENT` immediately (no operator confirmation is required for creation);
-non-critical sustained evidence creates `WARNING`, with one later `INCIDENT`
-escalation if the episode reaches the critical threshold. The web workflow is
-independent of this policy choice.
+В схеме есть одна противоречивая ветка: и «выраженное отклонение», и
+«устойчивое отклонение» ведут к `INCIDENT`, хотя отдельный узел `WARNING`
+существует. Реализация разрешает это так: критический evidence сразу создаёт
+`INCIDENT` (подтверждение оператора для создания не требуется); некритический
+устойчивый evidence создаёт `WARNING`, затем одна эскалация в `INCIDENT`, если
+эпизод достигает критического порога. Веб-workflow не зависит от этого выбора
+политики.
 
-The dashboard shows the alert queue, newest by event time (`observations.ts`)
-first, 10 alerts per page with pagination and filters by status
-(`ACTIVE`/`OPEN`/`ACKNOWLEDGED`/`CLOSED`), type (`WARNING`/`INCIDENT`) and
-series. The heading shows the visible range and total. The quality table is
-paginated separately, 10 rows per page (`qpage`), and preserves the alert
-filters and page. Actions are `В работу`, `Реальный сбой`, `Ложная тревога`
-and `Закрыть` (дежурный инженер).
-Automatic pilot checks are
-kept as historical `check_results`: confirmed alerts are marked
-`ACKNOWLEDGED`, false alarms `CLOSED`. New manual alerts start as `OPEN`.
-The dashboard refreshes KPIs, alerts and statistics every 10 s and the chart
-every 30 s; a manual point updates the chart and tables immediately.
+Dashboard показывает очередь алертов, сначала новые по времени события
+(`observations.ts`), по 10 алертов на страницу с пагинацией и фильтрами по
+статусу (`ACTIVE`/`OPEN`/`ACKNOWLEDGED`/`CLOSED`), типу
+(`WARNING`/`INCIDENT`) и ряду. В заголовке отображается видимый диапазон и
+общее число. Таблица качества пагинируется отдельно, по 10 строк на страницу
+(`qpage`), и сохраняет фильтры и страницу алертов. Действия: `В работу`,
+`Реальный сбой`, `Ложная тревога` и `Закрыть` (дежурный инженер).
+Автоматические пилотные проверки хранятся как исторические `check_results`:
+подтверждённые алерты помечаются `ACKNOWLEDGED`, ложные тревоги — `CLOSED`.
+Новые ручные алерты начинаются со статуса `OPEN`. Dashboard обновляет KPI,
+алерты и статистику каждые 10 с, график — каждые 30 с; ручная точка обновляет
+график и таблицы сразу.
 
-A continuing failure is one episode: while it is active, new high values return
-`SKIP` with `reason="внутри активного эпизода"` and do not create duplicate
-alerts. The episode ends after `end_after` low points; then a new anomaly can
-create a new alert. This is intentional deduplication, not lost data: every new
-point still updates the chart, decisions journal and counters.
+Продолжающийся сбой — это один эпизод: пока он активен, новые высокие значения
+возвращают `SKIP` с `reason="внутри активного эпизода"` и не создают
+дубликаты алертов. Эпизод завершается после `end_after` низких точек; затем
+новая аномалия может создать новый алерт. Это намеренная дедупликация, а не
+потеря данных: каждая новая точка всё равно обновляет график, журнал решений и
+счётчики.
 
-The first call for a series loads its detector and warms the online state from
-recent database observations. Use sequential timestamps for meaningful
-streaming decisions.
+Первый вызов для ряда загружает его детектор и прогревает онлайн-состояние по
+последним наблюдениям из базы. Для осмысленных потоковых решений используйте
+последовательные timestamps.
 
 ## Docker + nginx
 
 ```bash
 cp .env.example .env
-# edit .env: change NAB_SECRET_KEY and all demo passwords
+# отредактируйте .env: измените NAB_SECRET_KEY и все демо-пароли
 docker compose up --build
 # dashboard: http://127.0.0.1:8081
 ```
 
-The `app` container waits for PostgreSQL, then starts uvicorn behind nginx.
-With `NAB_RUN_PIPELINE=auto` (default) it runs the pipeline only when the
-database or detectors are missing. Set `NAB_RUN_PIPELINE=1` to force a reset
-and re-run, or `0` to skip. Data, artifacts, reports and
-logs are stored in named volumes; PostgreSQL data is in `pgdata`. To copy
-generated reports out of the volume:
+Контейнер `app` ждёт PostgreSQL, затем запускает uvicorn за nginx. При
+`NAB_RUN_PIPELINE=auto` (по умолчанию) pipeline запускается только если база
+или детекторы отсутствуют. Установите `NAB_RUN_PIPELINE=1`, чтобы принудительно
+сбросить и перезапустить, или `0`, чтобы пропустить. Данные, артефакты, отчёты
+и логи хранятся в именованных volumes; данные PostgreSQL — в `pgdata`. Чтобы
+скопировать сгенерированные отчёты из volume:
 
 ```bash
 docker compose cp app:/app/reports/final_report.md ./final_report.md
 docker compose exec app ls /app/reports
 ```
 
-For a public deployment, terminate TLS at nginx (or a load balancer), set
-`NAB_COOKIE_SECURE=1`, use a strong random `NAB_SECRET_KEY`, and change all
-default passwords before exposing port 8081.
+Для публичного развёртывания завершайте TLS на nginx (или балансировщике),
+установите `NAB_COOKIE_SECURE=1`, используйте сильный случайный
+`NAB_SECRET_KEY` и смените все пароли по умолчанию до открытия порта 8081.
 
-## Reproducibility
+## Воспроизводимость
 
-`seed` is fixed in `config.yaml`. The pipeline resets the schema by default;
-use `--no-reset` to append. Every run rewrites `reports/metrics.json`,
-`reports/final_report.md`, the audit files, figure files, processed series and
-serialized detectors.
+`seed` зафиксирован в `config.yaml`. Pipeline по умолчанию сбрасывает схему;
+используйте `--no-reset`, чтобы дописывать данные. Каждый запуск перезаписывает
+`reports/metrics.json`, `reports/final_report.md`, файлы аудита, графики,
+размеченные ряды и сериализованные детекторы.
 
-## Limitations
+## Ограничения
 
-- The GPD tail model assumes the training split is representative; strong
-  regime changes produce false positives (see the stress report).
-- NAB raw labels are used for onsets, while combined windows are used for
-  masking and matching. Contextual anomalies can begin before the test split;
-  such windows are attributed to the split containing their onset.
-- The service is single-process and keeps runtime state in memory. A production
-  deployment would use a shared state store and a queue.
-- Auth is intentionally small: no registration, password reset, CSRF token,
-  rate limiting or MFA. The dashboard and nginx config are HTTP-only by default;
-  add TLS and `NAB_COOKIE_SECURE=1` before public exposure.
-- Demo passwords are re-applied from env at startup, so change them together
-  with `NAB_SECRET_KEY` and restart the app.
+- GPD-модель хвоста предполагает, что train репрезентативен; сильные изменения
+  режима дают ложные срабатывания (см. stress-отчёт).
+- Сырые метки NAB используются для onset, а комбинированные окна — для
+  маскирования и сопоставления. Контекстные аномалии могут начинаться до test;
+  такие окна относятся к split, содержащему их onset.
+- Сервис однопроцессный и держит runtime-состояние в памяти. Production-
+  развёртывание использовало бы общее хранилище состояния и очередь.
+- Auth намеренно небольшой: нет регистрации, сброса пароля, CSRF-токена,
+  rate limiting и MFA. Dashboard и конфиг nginx по умолчанию работают по HTTP;
+  перед публичным доступом добавьте TLS и `NAB_COOKIE_SECURE=1`.
+- Демо-пароли перезаписываются из env при старте, поэтому меняйте их вместе с
+  `NAB_SECRET_KEY` и перезапускайте приложение.
